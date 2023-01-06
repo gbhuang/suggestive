@@ -1,6 +1,13 @@
-import requests
+from selenium import webdriver
+from webdriver_manager.chrome import ChromeDriverManager
+# import requests
 from bs4 import BeautifulSoup
 
+# TODOS:
+# - switch to selenium to get html
+# - add option to limit to 5 stars
+# - add default limit for max number of reviews
+# - add code to get more than 30 reviews
 
 def get_ratings(book_url):
     score_mapping = {'it was amazing': 5,
@@ -9,9 +16,12 @@ def get_ratings(book_url):
                      'it was ok': 2,
                      'did not like it': 1}
 
+    driver = webdriver.Chrome(ChromeDriverManager().install())
+
     ratings = {}
-    response = requests.get(book_url)
-    soup = BeautifulSoup(response.content, 'html.parser')
+    # response = requests.get(book_url)
+    driver.get(book_url)
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
     reviews = soup.find_all('div', class_='review')
 
     for review in reviews:
@@ -21,6 +31,7 @@ def get_ratings(book_url):
             'href'].split('/')[-1]
         ratings[user] = score
 
+    driver.quit()
     return ratings
 
 
