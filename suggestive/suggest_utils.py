@@ -24,28 +24,35 @@ def _get_page_version_banner(driver):
         try:
             elem.click()
             page_banner = False
-        except:
+        except Exception:
             page_banner = True
-    except:
+    except Exception:
         page_new = False
         try:
             driver.find_element(By.LINK_TEXT,
                                 'More filters').click()
             page_banner = False
-        except:
+        except Exception:
             page_banner = True
     return page_new, page_banner
 
 
-def _scroll_to_end(driver):
+def _scroll_to_end(driver, stop_early=None, check_iter=10):
     last_height = driver.execute_script("return document.body.scrollHeight")
+    iter = 0
     while True:
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        driver.execute_script(
+            "window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(1)
         new_height = driver.execute_script("return document.body.scrollHeight")
         if new_height == last_height:
             break
         last_height = new_height
+
+        iter += 1
+        if (stop_early is not None) and ((iter % check_iter) == 0):
+            if stop_early(driver):
+                break
     return
 
 
@@ -97,7 +104,7 @@ def _get_ratings_old(book_url, filter_five=False):
                 time.sleep(2)
                 driver.find_element(By.LINK_TEXT, 'More filters').click()
                 clicked = True
-            except:
+            except Exception:
                 # sign-in banner blocking, or wrong version of site
                 driver.get(book_url)
 
@@ -110,7 +117,7 @@ def _get_ratings_old(book_url, filter_five=False):
             try:
                 driver.find_element(By.LINK_TEXT, str(ii)).click()
                 time.sleep(3)
-            except:
+            except Exception:
                 break
 
         soup = BeautifulSoup(driver.page_source, 'html.parser')

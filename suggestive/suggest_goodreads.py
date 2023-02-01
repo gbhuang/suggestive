@@ -1,18 +1,48 @@
-from .suggest_utils import *
+from .suggest_utils import _scroll_all, _scroll_to_elem, _scroll_to_end, \
+    _get_page_version_banner
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
+import numpy as np
 import time
 import os
 import pickle
 
 
 def suggest_goodreads_book_by_projection(book_urls):
-    # TODO:
-    # - get 5 star ratings for reviewers
-    # - present list sorted by most 5 star ratings
+    common_reviewers = _get_projection(book_urls)
 
+    books = []
+    for rr in common_reviewers:
+        books.append(_get_books(rr, filter_five=True))
+
+    nn = {}
+    for ii, rr in enumerate(common_reviewers):
+        for bb in books[ii]:
+            if bb in nn:
+                nn[bb] += 1
+            else:
+                nn[bb] = 1
+
+    ss = []
+    tt = []
+    for bb in nn:
+        if nn[bb] > 1:
+            ss.append(nn[bb])
+            tt.append(bb)
+
+    idx = np.argsort(-np.asarray(ss))
+    for ii in idx:
+        print('{} : {}'.format(ss[ii], tt[ii]))
+
+    return common_reviewers, books
+
+
+def suggest_goodreads_users_by_projection(book_urls):
+    pass
+
+
+def _get_projection(book_urls):
     all_ratings = []
     for book_url in book_urls:
         all_ratings.append(_get_ratings(book_url, filter_five=True))
@@ -28,13 +58,94 @@ def suggest_goodreads_book_by_projection(book_urls):
     return common_reviewers
 
 
+def _get_user_book_rating(review):
+    score_mapping = {'it was amazing': 5,
+                     'really liked it': 4,
+                     'liked it': 3,
+                     'it was ok': 2,
+                     'did not like it': 1}
+
+    book_info = review.find_all(
+        'td', class_='field title')[0].find_all('a')[0]
+    book_id = book_info['href'].split('/')[-1]
+    book_title = book_info['title']
+    try:
+        tt = review.find_all('td', class_='field rating')[0].find_all(
+            'span', class_='staticStars')[0]['title']
+        book_rating = score_mapping[tt]
+    except Exception:
+        book_rating = None
+
+    return book_title, book_id, book_rating
+
+
+def _user_stop_early(driver):
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    reviews = soup.find_all('tr', class_='bookalike review')
+    rr = _get_user_book_rating(reviews[-1])
+    if rr[-1] is None:
+        return True
+    return False
+
+
+def _get_books(user_id, filter_five=False):
+    user_fn = 'cached/users/{}.p'.format(user_id)
+    if os.path.isfile(user_fn):
+        print('reading result from cache')
+        with open(user_fn, 'rb') as f_in:
+            books = pickle.load(f_in)
+    else:
+        driver = webdriver.Chrome(ChromeDriverManager().install())
+        books = {}
+
+        url = ('https://www.goodreads.com/review/list/'
+               '{}?page=1&sort=rating'.format(user_id))
+
+        driver.get(url)
+
+        retries = 5
+        for ii in range(retries):
+            _scroll_to_end(driver, _user_stop_early)
+            time.sleep(1)
+
+        _scroll_all(driver)
+
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        reviews = soup.find_all('tr', class_='bookalike review')
+
+        for rr in reviews:
+            book_title, book_id, book_rating = _get_user_book_rating(rr)
+            if book_rating is None:
+                break
+
+            books[book_title] = (book_rating, book_id)
+
+        if not os.path.isdir('cached'):
+            os.mkdir('cached')
+        if not os.path.isdir('cached/users'):
+            os.mkdir('cached/users')
+        with open(user_fn, 'wb') as f_out:
+            pickle.dump(books, f_out)
+
+        driver.quit()
+
+    if filter_five:
+        bf = {}
+        for bb in books:
+            if books[bb][0] == 5:
+                bf[bb] = (5, books[bb][1])
+        books = bf
+
+    return books
+
+
 def _get_ratings(book_url, filter_five=False, max_reviews=6000):
     # new version of goodreads book page
     book_id = book_url.split('/')[-1]
     book_fn = book_id
     if filter_five:
         book_fn += '_filtered'
-    book_fn = 'cached/{}.p'.format(book_fn)
+    book_fn = 'cached/books/{}.p'.format(book_fn)
     if os.path.isfile(book_fn):
         print('reading result from cache')
         with open(book_fn, 'rb') as f_in:
@@ -76,7 +187,7 @@ def _get_ratings(book_url, filter_five=False, max_reviews=6000):
             print('clicking to clear filter')
             _scroll_to_elem(driver, aa, click=True)
             time.sleep(4)
-        except:
+        except Exception:
             break
 
     if filter_five:
@@ -123,6 +234,8 @@ def _get_ratings(book_url, filter_five=False, max_reviews=6000):
 
     if not os.path.isdir('cached'):
         os.mkdir('cached')
+    if not os.path.isdir('cached/books'):
+        os.mkdir('cached/books')
     with open(book_fn, 'wb') as f_out:
         pickle.dump(ratings, f_out)
 
