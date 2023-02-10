@@ -2,6 +2,7 @@ from .suggest_utils import _scroll_all, _scroll_to_elem, _scroll_to_end, \
     _get_page_version_banner
 from selenium import webdriver
 from webdriver_manager.chrome import ChromeDriverManager
+# import geckodriver_autoinstaller
 from bs4 import BeautifulSoup
 import numpy as np
 import time
@@ -9,31 +10,58 @@ import os
 import pickle
 
 
-def suggest_goodreads_book_by_projection(book_urls):
+def suggest_goodreads_book_by_projection(book_urls, output_fn=None):
     common_reviewers = _get_projection(book_urls)
 
     books = []
+    n_reviewers = 0
     for rr in common_reviewers:
         books.append(_get_books(rr, filter_five=True))
+        if len(books[-1]) > 0:
+            n_reviewers += 1
 
     nn = {}
+    aa = {}
     for ii, rr in enumerate(common_reviewers):
         for bb in books[ii]:
             if bb in nn:
                 nn[bb] += 1
             else:
                 nn[bb] = 1
+                aa[bb] = books[ii][bb][1]
 
     ss = []
     tt = []
+    ll = []
     for bb in nn:
         if nn[bb] > 1:
             ss.append(nn[bb])
             tt.append(bb)
+            ll.append(aa[bb])
 
     idx = np.argsort(-np.asarray(ss))
-    for ii in idx:
-        print('{} : {}'.format(ss[ii], tt[ii]))
+    if output_fn is None:
+        for ii in idx:
+            print('{} : {}'.format(ss[ii], tt[ii]))
+    else:
+        url_pre = 'https://www.goodreads.com/book/show/'
+        with open(output_fn, 'w') as f_out:
+            f_out.write('<html><body>\n')
+
+            t1 = book_urls[0].split('/')[-1].split('-', 1)[-1]
+            t2 = book_urls[1].split('/')[-1].split('-', 1)[-1]
+            hh = (f'Book recommendations based on ({n_reviewers}) '
+                  'readers who liked '
+                  f'<a href="{book_urls[0]}">{t1}</a> and '
+                  f'<a href="{book_urls[1]}">{t2}</a><br /><br />\n')
+            f_out.write(hh)
+
+            for ii in idx:
+                bb = (f'({ss[ii]}) - <a href="{url_pre}{ll[ii]}">{tt[ii]}'
+                      '</a><br />\n')
+                f_out.write(bb)
+
+            f_out.write('</body></html>\n')
 
     return common_reviewers, books
 
@@ -139,7 +167,7 @@ def _get_books(user_id, filter_five=False):
     return books
 
 
-def _get_ratings(book_url, filter_five=False, max_reviews=6000):
+def _get_ratings(book_url, filter_five=False, max_reviews=5000):
     # new version of goodreads book page
     book_id = book_url.split('/')[-1]
     book_fn = book_id
@@ -153,6 +181,8 @@ def _get_ratings(book_url, filter_five=False, max_reviews=6000):
         return ratings
 
     driver = webdriver.Chrome(ChromeDriverManager().install())
+    # geckodriver_autoinstaller.install()
+    # driver = webdriver.Firefox()
 
     ratings = {}
 
