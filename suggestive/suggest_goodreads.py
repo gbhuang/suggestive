@@ -2,7 +2,7 @@ from .suggest_utils import _scroll_all, _scroll_to_elem, _scroll_to_end, \
     _get_page_version_banner
 from selenium import webdriver
 from webdriver_manager.chrome import ChromeDriverManager
-# import geckodriver_autoinstaller
+import geckodriver_autoinstaller
 from bs4 import BeautifulSoup
 import numpy as np
 import time
@@ -167,7 +167,7 @@ def _get_books(user_id, filter_five=False):
     return books
 
 
-def _get_ratings(book_url, filter_five=False, max_reviews=5000):
+def _get_ratings(book_url, filter_five=False, max_reviews=3000):
     # new version of goodreads book page
     book_id = book_url.split('/')[-1]
     book_fn = book_id
@@ -180,26 +180,27 @@ def _get_ratings(book_url, filter_five=False, max_reviews=5000):
             ratings = pickle.load(f_in)
         return ratings
 
-    driver = webdriver.Chrome(ChromeDriverManager().install())
-    # geckodriver_autoinstaller.install()
-    # driver = webdriver.Firefox()
+    # driver = webdriver.Chrome(ChromeDriverManager().install())
+    geckodriver_autoinstaller.install()
+    driver = webdriver.Firefox()
 
     ratings = {}
 
+    driver.get(book_url)
     # make sure to get new version of site, without page banner
-    while True:
-        driver.get(book_url)
-        pn, pb = _get_page_version_banner(driver)
-        if pn is True:
-            if pb is False:
-                break
-            else:
-                time.sleep(2)
-        else:
-            time.sleep(10)
-            driver.quit()
-            driver = webdriver.Chrome(
-                ChromeDriverManager().install())
+    # while True:
+    #     driver.get(book_url)
+    #     pn, pb = _get_page_version_banner(driver)
+    #     if pn is True:
+    #         if pb is False:
+    #             break
+    #         else:
+    #             time.sleep(2)
+    #     else:
+    #         time.sleep(10)
+    #         driver.quit()
+    #         driver = webdriver.Chrome(
+    #             ChromeDriverManager().install())
 
     # click through to reviews page
     _scroll_to_end(driver)
@@ -237,7 +238,7 @@ def _get_ratings(book_url, filter_five=False, max_reviews=5000):
             _scroll_to_elem(driver, aa, click=True)
             n_reviews += 30
             n_fail = 0
-            time.sleep(3)
+            time.sleep(4)
         except Exception as e:
             print(e)
             n_fail += 1
