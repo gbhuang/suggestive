@@ -210,6 +210,16 @@ def _get_ratings(book_url, filter_five=False, max_reviews=3000):
     time.sleep(1)
     _scroll_to_elem(driver, aa, click=True)
 
+    # clear goodreads banner if necessary
+    time.sleep(5)
+    try:
+        aa = driver.find_element_by_css_selector(
+            '[aria-label="Close"]')
+        _scroll_to_elem(driver, aa, click=True)
+        time.sleep(3)
+    except Exception:
+        pass
+
     # first clear any set filters
     while True:
         try:
